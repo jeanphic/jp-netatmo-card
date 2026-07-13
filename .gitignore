@@ -1,0 +1,4 @@
+# Backups and old files
+*.old
+*.bak
+*Copie.js
