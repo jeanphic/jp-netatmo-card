@@ -7,15 +7,10 @@ class JPNetatmoVerticalCard extends HTMLElement {
   setConfig(config) {
     if (!config.entity) throw new Error("Vous devez définir l'entité climate");
 
-    let defaultImagesPath = "/local/images/netatmo/";
-    try {
-      const scriptUrl = new URL(import.meta.url);
-      const basePath = scriptUrl.pathname.substring(0, scriptUrl.pathname.lastIndexOf('/'));
-      defaultImagesPath = `${basePath}/images/`;
-    } catch (e) {}
+    const imagesPath = (config.images_path || "/local/images/netatmo/").replace(/\/?$/, '/');
 
     this.config = {
-      images_path: config.images_path || defaultImagesPath,
+      images_path: imagesPath,
       room_name: "Salon",
       hvac_action_sensor: "sensor.netatmo_hvac_action",
       preset_mode_sensor: "sensor.netatmo_preset_mode",
