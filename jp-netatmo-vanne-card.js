@@ -88,13 +88,13 @@ class JPNetatmoVanne extends HTMLElement {
             </div>
 
             <!-- Température Actuelle -->
-            <div class="element text-element" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
+            <div class="element text-element" id="current-temp" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
               ${stateObj.attributes.current_temperature}°
             </div>
 
             <!-- Température de Consigne -->
-            <div class="element text-element" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
-              ${targetTemp ? targetTemp.state : '--'}°
+            <div class="element text-element" id="target-temp" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
+              ${targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--')}°
             </div>
 
             <!-- Témoin Chauffe -->
@@ -116,11 +116,11 @@ class JPNetatmoVanne extends HTMLElement {
             </div>
 
             <!-- Batterie -->
-            <div class="element text-element" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 400;">
+            <div class="element text-element" id="battery-level" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 400;">
               ${battery ? battery.state : '--'}%
             </div>
             <div class="element" id="btn-battery" style="top: 86%; left: 8%;">
-              <ha-icon icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: rgb(68,68,68);"></ha-icon>
+              <ha-icon id="battery-icon" icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: rgb(68,68,68);"></ha-icon>
             </div>
           </div>
         </ha-card>
@@ -135,6 +135,27 @@ class JPNetatmoVanne extends HTMLElement {
     }
 
     // Mises à jour dynamiques
+    const currentTempEl = this.shadowRoot.getElementById("current-temp");
+    if (currentTempEl && stateObj.attributes.current_temperature !== undefined) {
+      currentTempEl.textContent = `${stateObj.attributes.current_temperature}°`;
+    }
+
+    const targetTempEl = this.shadowRoot.getElementById("target-temp");
+    if (targetTempEl) {
+      const val = targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--');
+      targetTempEl.textContent = `${val}°`;
+    }
+
+    const batteryLevelEl = this.shadowRoot.getElementById("battery-level");
+    if (batteryLevelEl && battery) {
+      batteryLevelEl.textContent = `${battery.state}%`;
+    }
+
+    const batteryIconEl = this.shadowRoot.getElementById("battery-icon");
+    if (batteryIconEl && battery) {
+      batteryIconEl.setAttribute("icon", battery.attributes.icon || "mdi:battery");
+    }
+
     const witness = this.shadowRoot.getElementById("heating-witness");
     witness.style.opacity = (hvacAction && (hvacAction.state === "heating" || hvacAction.state === "on")) ? "1" : "0";
 
@@ -156,8 +177,18 @@ class JPNetatmoVanne extends HTMLElement {
   }
 
   _callScriptAdjust(offset) {
+    const targetTemp = this.config.target_temp_sensor ? this._hass.states[this.config.target_temp_sensor] : null;
+    const current = targetTemp ? parseFloat(targetTemp.state) : parseFloat(this._hass.states[this.config.entity]?.attributes?.temperature);
+    if (!isNaN(current)) {
+      const nextTemp = Math.round((current + offset) * 10) / 10;
+      const targetTempEl = this.shadowRoot.getElementById("target-temp");
+      if (targetTempEl) targetTempEl.textContent = `${nextTemp}°`;
+    }
+
     this._hass.callService("script", "netatmo_adjust_temp", {
       room: this.config.room_name.toLowerCase(),
+      climate_entity: this.config.entity,
+      sensor_entity: this.config.target_temp_sensor,
       offset: offset
     });
   }
@@ -178,5 +209,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "jp-netatmo-vanne-card",
   name: "JP Netatmo Vanne Card",
-  description: "Carte dédiée aux vannes thermostatiques Netatmo."
+  description: "Carte Vanne Netatmo Premium."
 });

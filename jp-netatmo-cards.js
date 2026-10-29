@@ -1,11 +1,11 @@
-class JPNetatmoCard extends HTMLElement {
+﻿class JPNetatmoCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
   }
 
   setConfig(config) {
-    if (!config.entity) throw new Error("Vous devez définir l'entité climate");
+    if (!config.entity) throw new Error("Vous devez dÃ©finir l'entitÃ© climate");
 
     let defaultImagesPath = "/local/images/netatmo/";
     try {
@@ -87,22 +87,22 @@ class JPNetatmoCard extends HTMLElement {
         </style>
         <ha-card>
           <div class="base-container" id="container">
-            <!-- Nom de la pièce -->
+            <!-- Nom de la piÃ¨ce -->
             <div class="element text-element" style="top: 25%; left: 66%; font-size: 1.2em; color: rgb(68, 68, 68); font-weight: 400;">
               ${this.config.room_name}
             </div>
 
-            <!-- Température Actuelle -->
-            <div class="element text-element" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
-              ${stateObj.attributes.current_temperature}°
+            <!-- TempÃ©rature Actuelle -->
+            <div class="element text-element" id="current-temp" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
+              ${stateObj.attributes.current_temperature}Â°
             </div>
 
-            <!-- Température de Consigne -->
-            <div class="element text-element" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
-              ${targetTemp ? targetTemp.state : '--'}°
+            <!-- TempÃ©rature de Consigne -->
+            <div class="element text-element" id="target-temp" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
+              ${targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--')}Â°
             </div>
 
-            <!-- Témoin Chauffe -->
+            <!-- TÃ©moin Chauffe -->
             <div class="element disabled" id="heating-witness" style="top: 58%; left: 25.5%; width: 7%;">
               <img src="${this.config.images_path}netatmo_chauffe.png">
             </div>
@@ -121,11 +121,11 @@ class JPNetatmoCard extends HTMLElement {
             </div>
 
             <!-- Batterie -->
-            <div class="element text-element" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 600;">
+            <div class="element text-element" id="battery-level" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 600;">
               ${battery ? battery.state : '--'}%
             </div>
             <div class="element" id="btn-battery" style="top: 86%; left: 8%;">
-              <ha-icon icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: grey;"></ha-icon>
+              <ha-icon id="battery-icon" icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: grey;"></ha-icon>
             </div>
 
             <!-- Planning -->
@@ -170,7 +170,33 @@ class JPNetatmoCard extends HTMLElement {
       this.shadowRoot.getElementById("preset-icon").onclick = () => this._callScriptMode("schedule");
     }
 
-    // Mises à jour dynamiques
+    // Mises Ã  jour dynamiques
+    const currentTempEl = this.shadowRoot.getElementById("current-temp");
+    if (currentTempEl && stateObj.attributes.current_temperature !== undefined) {
+      currentTempEl.textContent = `${stateObj.attributes.current_temperature}Â°`;
+    }
+
+    const targetTempEl = this.shadowRoot.getElementById("target-temp");
+    if (targetTempEl) {
+      const val = targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--');
+      targetTempEl.textContent = `${val}Â°`;
+    }
+
+    const batteryLevelEl = this.shadowRoot.getElementById("battery-level");
+    if (batteryLevelEl && battery) {
+      batteryLevelEl.textContent = `${battery.state}%`;
+    }
+
+    const batteryIconEl = this.shadowRoot.getElementById("battery-icon");
+    if (batteryIconEl && battery) {
+      batteryIconEl.setAttribute("icon", battery.attributes.icon || "mdi:battery");
+    }
+
+    const scheduleSelectEl = this.shadowRoot.getElementById("btn-schedule-select");
+    if (scheduleSelectEl && schedule) {
+      scheduleSelectEl.textContent = schedule.state;
+    }
+
     const witness = this.shadowRoot.getElementById("heating-witness");
     witness.style.opacity = (hvacAction && hvacAction.state === "heating") ? "1" : "0";
 
@@ -190,8 +216,18 @@ class JPNetatmoCard extends HTMLElement {
   }
 
   _callScriptAdjust(offset) {
+    const targetTemp = this.config.target_temp_sensor ? this._hass.states[this.config.target_temp_sensor] : null;
+    const current = targetTemp ? parseFloat(targetTemp.state) : parseFloat(this._hass.states[this.config.entity]?.attributes?.temperature);
+    if (!isNaN(current)) {
+      const nextTemp = Math.round((current + offset) * 10) / 10;
+      const targetTempEl = this.shadowRoot.getElementById("target-temp");
+      if (targetTempEl) targetTempEl.textContent = `${nextTemp}Â°`;
+    }
+
     this._hass.callService("script", "netatmo_adjust_temp", {
       room: this.config.room_name.toLowerCase(),
+      climate_entity: this.config.entity,
+      sensor_entity: this.config.target_temp_sensor,
       offset: offset
     });
   }
@@ -214,6 +250,7 @@ window.customCards.push({
   name: "JP Netatmo Card",
   description: "Carte Thermostat Netatmo Premium."
 });
+
 class JPNetatmoVanne extends HTMLElement {
   constructor() {
     super();
@@ -221,7 +258,7 @@ class JPNetatmoVanne extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.entity) throw new Error("Vous devez définir l'entité climate");
+    if (!config.entity) throw new Error("Vous devez dÃ©finir l'entitÃ© climate");
 
     let defaultImagesPath = "/local/images/netatmo/";
     try {
@@ -298,22 +335,22 @@ class JPNetatmoVanne extends HTMLElement {
         </style>
         <ha-card>
           <div class="base-container" id="container">
-            <!-- Nom de la pièce -->
+            <!-- Nom de la piÃ¨ce -->
             <div class="element text-element" style="top: 25%; left: 66%; font-size: 1.2em; color: rgb(68, 68, 68); font-weight: 400;">
               ${this.config.room_name}
             </div>
 
-            <!-- Température Actuelle -->
-            <div class="element text-element" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
-              ${stateObj.attributes.current_temperature}°
+            <!-- TempÃ©rature Actuelle -->
+            <div class="element text-element" id="current-temp" style="top: 50%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
+              ${stateObj.attributes.current_temperature}Â°
             </div>
 
-            <!-- Température de Consigne -->
-            <div class="element text-element" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
-              ${targetTemp ? targetTemp.state : '--'}°
+            <!-- TempÃ©rature de Consigne -->
+            <div class="element text-element" id="target-temp" style="top: 28%; left: 25%; font-size: 0.75em; color: white; font-weight: 600;">
+              ${targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--')}Â°
             </div>
 
-            <!-- Témoin Chauffe -->
+            <!-- TÃ©moin Chauffe -->
             <div class="element disabled" id="heating-witness" style="top: 58%; left: 25.5%; width: 7%;">
               <img src="${this.config.images_path}netatmo_chauffe.png">
             </div>
@@ -332,11 +369,11 @@ class JPNetatmoVanne extends HTMLElement {
             </div>
 
             <!-- Batterie -->
-            <div class="element text-element" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 400;">
+            <div class="element text-element" id="battery-level" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 400;">
               ${battery ? battery.state : '--'}%
             </div>
             <div class="element" id="btn-battery" style="top: 86%; left: 8%;">
-              <ha-icon icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: rgb(68,68,68);"></ha-icon>
+              <ha-icon id="battery-icon" icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: rgb(68,68,68);"></ha-icon>
             </div>
           </div>
         </ha-card>
@@ -350,7 +387,28 @@ class JPNetatmoVanne extends HTMLElement {
       this.shadowRoot.getElementById("preset-icon").onclick = () => this._callScriptMode("schedule");
     }
 
-    // Mises à jour dynamiques
+    // Mises Ã  jour dynamiques
+    const currentTempEl = this.shadowRoot.getElementById("current-temp");
+    if (currentTempEl && stateObj.attributes.current_temperature !== undefined) {
+      currentTempEl.textContent = `${stateObj.attributes.current_temperature}Â°`;
+    }
+
+    const targetTempEl = this.shadowRoot.getElementById("target-temp");
+    if (targetTempEl) {
+      const val = targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--');
+      targetTempEl.textContent = `${val}Â°`;
+    }
+
+    const batteryLevelEl = this.shadowRoot.getElementById("battery-level");
+    if (batteryLevelEl && battery) {
+      batteryLevelEl.textContent = `${battery.state}%`;
+    }
+
+    const batteryIconEl = this.shadowRoot.getElementById("battery-icon");
+    if (batteryIconEl && battery) {
+      batteryIconEl.setAttribute("icon", battery.attributes.icon || "mdi:battery");
+    }
+
     const witness = this.shadowRoot.getElementById("heating-witness");
     witness.style.opacity = (hvacAction && (hvacAction.state === "heating" || hvacAction.state === "on")) ? "1" : "0";
 
@@ -372,8 +430,18 @@ class JPNetatmoVanne extends HTMLElement {
   }
 
   _callScriptAdjust(offset) {
+    const targetTemp = this.config.target_temp_sensor ? this._hass.states[this.config.target_temp_sensor] : null;
+    const current = targetTemp ? parseFloat(targetTemp.state) : parseFloat(this._hass.states[this.config.entity]?.attributes?.temperature);
+    if (!isNaN(current)) {
+      const nextTemp = Math.round((current + offset) * 10) / 10;
+      const targetTempEl = this.shadowRoot.getElementById("target-temp");
+      if (targetTempEl) targetTempEl.textContent = `${nextTemp}Â°`;
+    }
+
     this._hass.callService("script", "netatmo_adjust_temp", {
       room: this.config.room_name.toLowerCase(),
+      climate_entity: this.config.entity,
+      sensor_entity: this.config.target_temp_sensor,
       offset: offset
     });
   }
@@ -394,8 +462,9 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "jp-netatmo-vanne-card",
   name: "JP Netatmo Vanne Card",
-  description: "Carte dédiée aux vannes thermostatiques Netatmo."
+  description: "Carte Vanne Netatmo Premium."
 });
+
 class JPNetatmoVerticalCard extends HTMLElement {
   constructor() {
     super();
@@ -403,7 +472,7 @@ class JPNetatmoVerticalCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.entity) throw new Error("Vous devez définir l'entité climate");
+    if (!config.entity) throw new Error("Vous devez dÃ©finir l'entitÃ© climate");
 
     let defaultImagesPath = "/local/images/netatmo/";
     try {
@@ -420,7 +489,7 @@ class JPNetatmoVerticalCard extends HTMLElement {
       target_temp_sensor: "sensor.netatmo_temperature_consigne",
       battery_sensor: "sensor.thermostat_salon_battery_percent",
       schedule_select: "select.home",
-      max_width: "300px",
+      max_width: "100%",
       show_modes: true,
       show_toggle: true,
       show_schedule: true,
@@ -454,8 +523,8 @@ class JPNetatmoVerticalCard extends HTMLElement {
           .base-container {
             position: relative;
             width: 100%;
-            padding-bottom: 72.37%; /* Ratio 362x262 */
-            background-image: url("${this.config.images_path}netatmo_base362x262.png");
+            padding-bottom: 72.37%; /* Ratio 529x382 ou 362x262 */
+            background-image: url("${this.config.images_path}netatmo_base529x382.png");
             background-size: cover;
             background-repeat: no-repeat;
             user-select: none;
@@ -485,22 +554,22 @@ class JPNetatmoVerticalCard extends HTMLElement {
         </style>
         <ha-card>
           <div class="base-container" id="container">
-            <!-- Nom de la pièce (Au dessus des valeurs) -->
+            <!-- Nom de la piÃ¨ce (Au dessus des valeurs) -->
             <div class="element text-element" style="top: 15%; left: 25.5%; font-size: 1.1em; color: white; font-weight: 400; text-shadow: 0px 1px 2px rgba(0,0,0,0.5);">
               ${this.config.room_name}
             </div>
 
-            <!-- Température de Consigne -->
-            <div class="element text-element" style="top: 32%; left: 25.5%; font-size: 0.75em; color: white; font-weight: 600;">
-              ${targetTemp ? targetTemp.state : '--'}°
+            <!-- TempÃ©rature de Consigne -->
+            <div class="element text-element" id="target-temp" style="top: 32%; left: 25.5%; font-size: 0.75em; color: white; font-weight: 600;">
+              ${targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--')}Â°
             </div>
 
-            <!-- Température Actuelle -->
-            <div class="element text-element" style="top: 52%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
-              ${stateObj.attributes.current_temperature}°
+            <!-- TempÃ©rature Actuelle -->
+            <div class="element text-element" id="current-temp" style="top: 52%; left: 25.5%; font-size: 1.2em; color: black; font-weight: 600;">
+              ${stateObj.attributes.current_temperature}Â°
             </div>
 
-            <!-- Témoin Chauffe -->
+            <!-- TÃ©moin Chauffe -->
             <div class="element disabled" id="heating-witness" style="top: 60%; left: 25.5%; width: 7%;">
               <img src="${this.config.images_path}netatmo_chauffe.png">
             </div>
@@ -519,11 +588,11 @@ class JPNetatmoVerticalCard extends HTMLElement {
             </div>
 
             <!-- Batterie -->
-            <div class="element text-element" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 600;">
+            <div class="element text-element" id="battery-level" style="top: 74%; left: 8.3%; font-size: 0.7em; color: rgb(68,68,68); font-weight: 600;">
               ${battery ? battery.state : '--'}%
             </div>
             <div class="element" id="btn-battery" style="top: 86%; left: 8%;">
-              <ha-icon icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: grey;"></ha-icon>
+              <ha-icon id="battery-icon" icon="${battery ? battery.attributes.icon || 'mdi:battery' : 'mdi:battery'}" style="--mdc-icon-size: 20px; color: grey;"></ha-icon>
             </div>
 
             <!-- Planning -->
@@ -568,7 +637,33 @@ class JPNetatmoVerticalCard extends HTMLElement {
       this.shadowRoot.getElementById("preset-icon").onclick = () => this._callScriptMode("schedule");
     }
 
-    // Mises à jour dynamiques
+    // Mises Ã  jour dynamiques
+    const currentTempEl = this.shadowRoot.getElementById("current-temp");
+    if (currentTempEl && stateObj.attributes.current_temperature !== undefined) {
+      currentTempEl.textContent = `${stateObj.attributes.current_temperature}Â°`;
+    }
+
+    const targetTempEl = this.shadowRoot.getElementById("target-temp");
+    if (targetTempEl) {
+      const val = targetTemp ? targetTemp.state : (stateObj.attributes.temperature !== undefined ? stateObj.attributes.temperature : '--');
+      targetTempEl.textContent = `${val}Â°`;
+    }
+
+    const batteryLevelEl = this.shadowRoot.getElementById("battery-level");
+    if (batteryLevelEl && battery) {
+      batteryLevelEl.textContent = `${battery.state}%`;
+    }
+
+    const batteryIconEl = this.shadowRoot.getElementById("battery-icon");
+    if (batteryIconEl && battery) {
+      batteryIconEl.setAttribute("icon", battery.attributes.icon || "mdi:battery");
+    }
+
+    const scheduleSelectEl = this.shadowRoot.getElementById("btn-schedule-select");
+    if (scheduleSelectEl && schedule) {
+      scheduleSelectEl.textContent = schedule.state;
+    }
+
     const witness = this.shadowRoot.getElementById("heating-witness");
     witness.style.opacity = (hvacAction && hvacAction.state === "heating") ? "1" : "0";
 
@@ -588,8 +683,18 @@ class JPNetatmoVerticalCard extends HTMLElement {
   }
 
   _callScriptAdjust(offset) {
+    const targetTemp = this.config.target_temp_sensor ? this._hass.states[this.config.target_temp_sensor] : null;
+    const current = targetTemp ? parseFloat(targetTemp.state) : parseFloat(this._hass.states[this.config.entity]?.attributes?.temperature);
+    if (!isNaN(current)) {
+      const nextTemp = Math.round((current + offset) * 10) / 10;
+      const targetTempEl = this.shadowRoot.getElementById("target-temp");
+      if (targetTempEl) targetTempEl.textContent = `${nextTemp}Â°`;
+    }
+
     this._hass.callService("script", "netatmo_adjust_temp", {
       room: this.config.room_name.toLowerCase(),
+      climate_entity: this.config.entity,
+      sensor_entity: this.config.target_temp_sensor,
       offset: offset
     });
   }
@@ -610,5 +715,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "jp-netatmo-vertical-card",
   name: "JP Netatmo Vertical Card",
-  description: "Version alternative avec boutons verticaux et nom centré."
+  description: "Version alternative avec boutons verticaux et nom centrÃ©."
 });
+
